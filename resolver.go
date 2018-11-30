@@ -7,11 +7,15 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc/resolver"
 )
 
-const name = "khs"
+const (
+	name        = "khs"
+	updateEvery = time.Minute
+)
 
 // Register khs with gRPC.
 func init() {
@@ -51,6 +55,8 @@ func (kb *khsBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts
 		return nil, err
 	}
 
+	go res.periodicUpdate()
+
 	return res, nil
 }
 
@@ -66,6 +72,8 @@ type khsResolver struct {
 
 	serviceHost  string
 	endpointPort int
+
+	quitC chan struct{}
 }
 
 // resolve calls the ClientConn NewAddress callback with all the IPs returned from a standard DNS lookup to the serviceHost,
@@ -97,6 +105,23 @@ func (kr *khsResolver) resolve() error {
 	return nil
 }
 
+// periodicUpdate periodically calls resolve to ensure kr.cc contains an recent list of the service endpoints.
+func (kr *khsResolver) periodicUpdate() {
+	t := time.NewTicker(updateEvery)
+	for {
+		select {
+		case <-t.C:
+			err := kr.resolve()
+
+			if err != nil {
+				log.Printf("[khs - resolver.go] error resolving: %v", err)
+			}
+		case <-kr.quitC:
+			return
+		}
+	}
+}
+
 // Resolve now runs an internal resolve, updating khs.cc with the current list of endpoints.
 func (kr *khsResolver) ResolveNow(option resolver.ResolveNowOption) {
 	err := kr.resolve()
@@ -107,5 +132,5 @@ func (kr *khsResolver) ResolveNow(option resolver.ResolveNowOption) {
 }
 
 func (kr *khsResolver) Close() {
-
+	kr.quitC <- struct{}{}
 }
