@@ -37,6 +37,7 @@ func (kb *khsBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts
 	res := &khsResolver{
 		cc:          cc,
 		serviceHost: strs[0],
+		quitC:       make(chan struct{}),
 	}
 
 	if len(strs) == 2 {
