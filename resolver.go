@@ -96,12 +96,15 @@ func (kr *khsResolver) resolve() error {
 		}
 
 		addrs[i] = resolver.Address{
-			Addr: addr,
-			Type: resolver.Backend,
+			Addr:       addr,
+			Type:       resolver.Backend,
+			ServerName: ip.String(),
 		}
 	}
 
-	kr.cc.NewAddress(addrs)
+	kr.cc.UpdateState(resolver.State{
+		Addresses: addrs,
+	})
 
 	return nil
 }
