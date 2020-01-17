@@ -27,7 +27,7 @@ type khsBuilder struct{}
 
 // Build parses the target for the service host and the endpoint port, returning an error if these can not be parsed.
 // Should this succeed, it initialises a khsResolver, calls the first resolve and if this completes, it's returned.
-func (kb *khsBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
+func (kb *khsBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
 	strs := strings.Split(target.Endpoint, ":")
 
 	if len(strs) > 2 || len(strs) <= 0 {
@@ -97,13 +97,20 @@ func (kr *khsResolver) resolve() error {
 
 		addrs[i] = resolver.Address{
 			Addr:       addr,
-			Type:       resolver.Backend,
 			ServerName: ip.String(),
 		}
 	}
 
+	// NOTE: Use of the built-in Round Robin Balancer (google.golang.org/grpc/balancer/roundrobin) is now set via
+	// ServiceConfig JSON instead of the depreciated grpc.WithBalancerName(roundrobin.Name), previously a client DialOption.
+	// However, the gRPC Service Config docs (https://github.com/grpc/grpc/blob/master/doc/service_config.md) suggest
+	// loadBalancingPolicy is also being deprecated with no clear alternative.
+	//
+	// grpc/service_config.go currently supports a 'loadBalancingConfig' field, however it looks likely to change, so for
+	// now stick to the existing JSON definition.
 	kr.cc.UpdateState(resolver.State{
-		Addresses: addrs,
+		Addresses:     addrs,
+		ServiceConfig: kr.cc.ParseServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 	})
 
 	return nil
@@ -127,7 +134,7 @@ func (kr *khsResolver) periodicUpdate() {
 }
 
 // Resolve now runs an internal resolve, updating khs.cc with the current list of endpoints.
-func (kr *khsResolver) ResolveNow(option resolver.ResolveNowOption) {
+func (kr *khsResolver) ResolveNow(option resolver.ResolveNowOptions) {
 	err := kr.resolve()
 
 	if err != nil {
