@@ -97,7 +97,7 @@ func (kr *khsResolver) resolve() error {
 
 		addrs[i] = resolver.Address{
 			Addr:       addr,
-			ServerName: ip.String(),
+			ServerName: kr.serviceHost,
 		}
 	}
 
